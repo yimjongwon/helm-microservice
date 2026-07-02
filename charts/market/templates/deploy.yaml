@@ -1,0 +1,47 @@
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: market-app
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: market-app
+  template:
+    metadata:
+      labels:
+        app: market-app
+    spec:
+      containers:
+      - name: market-ctn
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}" 
+        ports:
+        - containerPort: {{ .Values.containerPort }}
+        resources:
+          limits:
+            cpu: "200m"
+            memory: "64Mi"
+        # 1. 컨테이너가 최초로 켜질때 까지만 감시
+        startupProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.containerPort }}
+          periodSeconds: 10       # 10초 간격
+          failureThreshold: 15    # 총 15번까지 헬스체크 시도
+        # 2. 부팅 완료 이후 데드락 여부만 감시 (실패하면 컨테이너를 자동으로 다시 띄워준다)
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.containerPort }}
+          # startup 이 성공하면 바로 인계받아서 테스트하기 때문에 대기 시간 필요 없음
+          initialDelaySeconds: 0
+          periodSeconds: 10 # 10초 마다 감시
+        # 3. 트래픽 유입, 차단 여부를 감시 (실패하면 컨테이너를 다시 띄우는게 아니고 트래픽만 차단)
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.containerPort }}
+          initialDelaySeconds: 0
+          periodSeconds: 5  # 5초마다 감시
+
